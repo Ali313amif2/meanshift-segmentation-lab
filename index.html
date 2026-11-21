@@ -1,0 +1,2001 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>آزمایشگاه مقایسه چندگانه Mean Shift — بخش‌بندی تصویر رنگی (True-Color)</title>
+  
+  <!-- فونت وزیرمتن جهت نمایش خوانا و علمی -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    /* ==========================================================================
+       متغیرهای رنگی اختصاصی پارامترها و پوسته علمی تاریک
+       ========================================================================== */
+    :root {
+      --bg-dark: #070d1a;
+      --panel-bg: #0f172a;
+      --card-bg: #131f36;
+      --card-border: rgba(148, 163, 184, 0.15);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      
+      /* رنگ‌های اختصاصی پارامترها */
+      --param-hs: #38bdf8;       /* Spatial Bandwidth - Cyan */
+      --param-hs-glow: rgba(56, 189, 248, 0.35);
+      --param-hr: #10b981;       /* Range Bandwidth - Emerald */
+      --param-hr-glow: rgba(16, 185, 129, 0.35);
+      --param-th: #f59e0b;       /* Convergence Threshold - Amber */
+      --param-th-glow: rgba(245, 158, 11, 0.35);
+      --param-iter: #a855f7;     /* Max Iterations - Violet */
+      --param-iter-glow: rgba(168, 85, 247, 0.35);
+      --param-kernel: #f43f5e;   /* Kernel Type - Rose */
+      --param-kernel-glow: rgba(244, 63, 94, 0.35);
+
+      /* رنگ خروجی‌های ۵گانه */
+      --out-1: #38bdf8;
+      --out-2: #10b981;
+      --out-3: #f59e0b;
+      --out-4: #a855f7;
+      --out-5: #f43f5e;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --transition-fast: 0.2s ease;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 14px;
+      gap: 14px;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.05) 0%, transparent 40%);
+    }
+
+    /* فرمول‌های ریاضی HTML بدون LaTeX ناخواسته */
+    .math {
+      font-family: 'Times New Roman', Georgia, serif;
+      font-style: italic;
+      display: inline-block;
+      direction: ltr;
+    }
+    .math sub, .math sup {
+      font-family: 'Vazirmatn', sans-serif;
+      font-style: normal;
+      font-size: 0.8em;
+    }
+
+    /* ==========================================================================
+       نوارهای بالا و پنل ابزار (Compact Header & Toolbar)
+       ========================================================================== */
+    header {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      padding: 12px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-title svg {
+      width: 28px;
+      height: 28px;
+      color: var(--param-hs);
+    }
+    .brand-title h1 {
+      font-size: 1.15rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #38bdf8, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.3px;
+    }
+    .brand-title p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background: #1e293b;
+      color: #f1f5f9;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      padding: 7px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: var(--transition-fast);
+    }
+    .btn:hover {
+      background: #334155;
+      border-color: rgba(148, 163, 184, 0.4);
+      transform: translateY(-1px);
+    }
+    .btn:active {
+      transform: translateY(0);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      border: none;
+      color: #ffffff;
+      box-shadow: 0 2px 10px rgba(2, 132, 199, 0.3);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #0369a1, #1d4ed8);
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.5);
+    }
+    .btn-accent {
+      background: linear-gradient(135deg, #7c3aed, #9333ea);
+      border: none;
+      color: #ffffff;
+    }
+    .btn-accent:hover {
+      background: linear-gradient(135deg, #6d28d9, #7e22ce);
+    }
+    .btn svg {
+      width: 15px;
+      height: 15px;
+    }
+
+    /* ==========================================================================
+       پنل تصویر مرجع و پیش‌فرض‌های آزمایش (Collapsible Control Row)
+       ========================================================================== */
+    .controls-panel {
+      background: var(--panel-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 14px;
+      transition: all 0.3s ease;
+    }
+    .controls-panel.collapsed {
+      display: none;
+    }
+
+    .ref-image-box {
+      background: var(--card-bg);
+      border: 1px dashed rgba(148, 163, 184, 0.3);
+      border-radius: var(--radius-sm);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+      position: relative;
+    }
+    .ref-preview-wrapper {
+      width: 100%;
+      height: 110px;
+      background: #090d16;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+    .ref-preview-wrapper canvas {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .ref-controls {
+      width: 100%;
+      display: flex;
+      gap: 6px;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .select-sm {
+      background: #0f172a;
+      color: var(--text-main);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .presets-box {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .presets-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .preset-pills {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 8px;
+    }
+    .preset-pill {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-right: 3px solid #64748b;
+      padding: 7px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: var(--transition-fast);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .preset-pill:hover {
+      background: rgba(30, 41, 59, 0.9);
+      transform: translateY(-1px);
+    }
+    .preset-pill.hs { border-right-color: var(--param-hs); }
+    .preset-pill.hr { border-right-color: var(--param-hr); }
+    .preset-pill.th { border-right-color: var(--param-th); }
+    .preset-pill.iter { border-right-color: var(--param-iter); }
+    .preset-pill.kernel { border-right-color: var(--param-kernel); }
+    .preset-pill.hybrid { border-right-color: #e2e8f0; }
+
+    .preset-name {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .preset-desc {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+    }
+
+    /* ==========================================================================
+       شبکه 5 خروجی در یک ردیف افقی (Single Row Desktop Layout)
+       ========================================================================== */
+    .outputs-container {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      width: 100%;
+    }
+
+    /* در صورت اسکرول تبلت/موبایل */
+    @media (max-width: 1050px) {
+      .outputs-container {
+        overflow-x: auto;
+        padding-bottom: 8px;
+        scroll-snap-type: x mandatory;
+      }
+      .output-card {
+        min-width: 250px;
+        scroll-snap-align: start;
+      }
+    }
+
+    .output-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .output-card:hover {
+      border-color: rgba(148, 163, 184, 0.3);
+    }
+
+    /* رنگ مرز بالایی کارت‌های خروجی */
+    .output-card[data-slot="0"] { border-top: 3px solid var(--out-1); }
+    .output-card[data-slot="1"] { border-top: 3px solid var(--out-2); }
+    .output-card[data-slot="2"] { border-top: 3px solid var(--out-3); }
+    .output-card[data-slot="3"] { border-top: 3px solid var(--out-4); }
+    .output-card[data-slot="4"] { border-top: 3px solid var(--out-5); }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-badge {
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 12px;
+      color: #0f172a;
+    }
+    .output-card[data-slot="0"] .card-badge { background: var(--out-1); }
+    .output-card[data-slot="1"] .card-badge { background: var(--out-2); }
+    .output-card[data-slot="2"] .card-badge { background: var(--out-3); }
+    .output-card[data-slot="3"] .card-badge { background: var(--out-4); }
+    .output-card[data-slot="4"] .card-badge { background: var(--out-5); }
+
+    .status-pill {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      background: rgba(15, 23, 42, 0.6);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    /* بوم تصویر خروجی متناسب و هم‌سطح */
+    .canvas-wrapper {
+      width: 100%;
+      height: 150px;
+      background: #070c16;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: zoom-in;
+    }
+    .canvas-wrapper canvas {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    
+    .progress-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(7, 13, 26, 0.82);
+      backdrop-filter: blur(2px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .progress-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top-color: var(--param-hs);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .progress-text {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+
+    /* ==========================================================================
+       کنترلرهای پارامترها با رنگ‌های اختصاصی
+       ========================================================================== */
+    .params-group {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      background: rgba(15, 23, 42, 0.4);
+      padding: 8px;
+      border-radius: var(--radius-sm);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .param-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .param-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.7rem;
+    }
+    .param-name {
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    /* رنگ برچسب پارامترها */
+    .param-item.hs .param-name { color: var(--param-hs); }
+    .param-item.hr .param-name { color: var(--param-hr); }
+    .param-item.th .param-name { color: var(--param-th); }
+    .param-item.iter .param-name { color: var(--param-iter); }
+    .param-item.kernel .param-name { color: var(--param-kernel); }
+
+    .param-val {
+      font-family: monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      background: rgba(15, 23, 42, 0.8);
+      padding: 1px 6px;
+      border-radius: 4px;
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* استایل سفارشی اسلایدرها با هماهنگی رنگی */
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      background: #1e293b;
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ffffff;
+      cursor: pointer;
+      transition: transform 0.1s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.3);
+    }
+
+    .param-item.hs input[type="range"]::-webkit-slider-thumb { background: var(--param-hs); box-shadow: 0 0 8px var(--param-hs-glow); }
+    .param-item.hr input[type="range"]::-webkit-slider-thumb { background: var(--param-hr); box-shadow: 0 0 8px var(--param-hr-glow); }
+    .param-item.th input[type="range"]::-webkit-slider-thumb { background: var(--param-th); box-shadow: 0 0 8px var(--param-th-glow); }
+    .param-item.iter input[type="range"]::-webkit-slider-thumb { background: var(--param-iter); box-shadow: 0 0 8px var(--param-iter-glow); }
+
+    .select-kernel {
+      width: 100%;
+      background: #0f172a;
+      color: var(--param-kernel);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      padding: 3px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* ==========================================================================
+       شبکه معیارهای ارزیابی (Metrics Grid)
+       ========================================================================== */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 6px;
+      border-radius: var(--radius-sm);
+    }
+    .metric-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0f172a;
+      padding: 4px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .metric-label {
+      font-size: 0.62rem;
+      color: var(--text-muted);
+    }
+    .metric-value {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      font-family: monospace;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 4px;
+    }
+    .card-actions .btn {
+      flex: 1;
+      justify-content: center;
+      padding: 5px;
+      font-size: 0.7rem;
+    }
+
+    /* ==========================================================================
+       بخش مقایسه تصویری پرده‌ای، جدول و نمودارهای ارزیابی
+       ========================================================================== */
+    .comparison-section {
+      background: var(--panel-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-top: 10px;
+    }
+    .section-title {
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 8px;
+    }
+
+    .split-comparator-box {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 16px;
+      align-items: center;
+    }
+    @media (max-width: 900px) {
+      .split-comparator-box { grid-template-columns: 1fr; }
+    }
+
+    .split-viewport {
+      width: 100%;
+      height: 320px;
+      background: #050811;
+      border-radius: var(--radius-sm);
+      position: relative;
+      overflow: hidden;
+      cursor: e-resize;
+      border: 1px solid var(--card-border);
+      touch-action: none;
+    }
+    .split-layer {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .split-layer canvas {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .split-layer.top {
+      width: 50%;
+      overflow: hidden;
+      border-left: 2px solid var(--param-hs);
+      z-index: 2;
+    }
+    .split-handle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 4px;
+      background: var(--param-hs);
+      z-index: 3;
+      transform: translateX(-50%);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+      pointer-events: none;
+    }
+
+    .comparator-controls {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* جدول ارزیابی کمّی */
+    .table-wrapper {
+      width: 100%;
+      overflow-x: auto;
+    }
+    table.comp-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+      text-align: center;
+    }
+    table.comp-table th, table.comp-table td {
+      padding: 8px 10px;
+      border: 1px solid var(--card-border);
+    }
+    table.comp-table th {
+      background: #0f172a;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+    table.comp-table th.hs { color: var(--param-hs); }
+    table.comp-table th.hr { color: var(--param-hr); }
+    table.comp-table th.th { color: var(--param-th); }
+    table.comp-table th.iter { color: var(--param-iter); }
+    table.comp-table th.kernel { color: var(--param-kernel); }
+    table.comp-table tbody tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .best-badge {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 0.68rem;
+      font-weight: 700;
+    }
+
+    /* نمودارها و گزارش تحلیلی */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 800px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+    .chart-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.72rem;
+    }
+    .bar-label { width: 60px; color: var(--text-muted); }
+    .bar-track {
+      flex: 1;
+      height: 10px;
+      background: #0f172a;
+      border-radius: 5px;
+      overflow: hidden;
+      position: relative;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 5px;
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .analysis-report {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      font-size: 0.8rem;
+      line-height: 1.6;
+      color: #cbd5e1;
+    }
+    .analysis-report h4 {
+      color: var(--param-hs);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ==========================================================================
+       مدال زوم و بازبینی (Lightbox Modal)
+       ========================================================================== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 7, 15, 0.88);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .modal-backdrop.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal-content {
+      background: var(--panel-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      max-width: 90vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+    }
+    .modal-header {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-body {
+      padding: 16px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      justify-content: center;
+      overflow: auto;
+    }
+    .modal-body canvas {
+      max-width: 70vw;
+      max-height: 70vh;
+      border-radius: var(--radius-sm);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+
+    footer {
+      text-align: center;
+      padding: 10px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--card-border);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==========================================================================
+       نوار بالای صفحه (Header & Action Bar)
+       ========================================================================== -->
+  <header>
+    <div class="brand-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+      <div>
+        <h1>آزمایشگاه مقایسه چندگانه Mean Shift</h1>
+        <p>بخش‌بندی ۵ بعدی تصویر رنگی (<span dir="ltr" class="math"><i>x, y, R, G, B</i></span>) با ادغام DSU و میانگین‌گیری واقعی رنگ</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn btn-primary" id="btnRunAll">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        اجرای همزمان ۵ خروجی
+      </button>
+
+      <button class="btn" id="btnSyncSlot1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        کپی پارامتر ۱ روی همه
+      </button>
+
+      <button class="btn" id="btnTogglePresentation">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        ارائه تمام‌صفحه (Focus)
+      </button>
+
+      <button class="btn btn-accent" id="btnExportSheet">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        دانلود شیت ۶گانه (PNG)
+      </button>
+
+      <a href="#comparisonSection" class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        بخش تحلیل
+      </a>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       پنل کنترلی تصویر مرجع و پیش‌فرض‌ها (Collapsible Controls)
+       ========================================================================== -->
+  <div class="controls-panel" id="controlsPanel">
+    
+    <!-- باکس تصویر مرجع -->
+    <div class="ref-image-box">
+      <div class="ref-preview-wrapper">
+        <canvas id="refCanvas"></canvas>
+      </div>
+      <div class="ref-controls">
+        <button class="btn" id="btnLoadDemo">تصویر نمونه</button>
+        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+        <button class="btn" onclick="document.getElementById('fileInput').click()">بارگذاری عکس</button>
+        <select class="select-sm" id="selResolution">
+          <option value="100">100px</option>
+          <option value="140" selected>140px (پیش‌فرض)</option>
+          <option value="180">180px (دقیق)</option>
+          <option value="220">220px (سنگین)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- پیش‌فرض‌های آزمایش تک‌متغیره -->
+    <div class="presets-box">
+      <div class="presets-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><polygon points="12 6 12 12 16 14"/></svg>
+        سناریوهای مقایسه‌ای پیش‌فرض (تک‌متغیره):
+      </div>
+      <div class="preset-pills">
+        <div class="preset-pill hs" onclick="applyPreset('hs')">
+          <span class="preset-name">اثر <span class="math"><i>h</i><sub>s</sub></span> (مکانی)</span>
+          <span class="preset-desc"><span class="math"><i>h</i><sub>s</sub></span> = [4, 8, 14, 22, 32]</span>
+        </div>
+        <div class="preset-pill hr" onclick="applyPreset('hr')">
+          <span class="preset-name">اثر <span class="math"><i>h</i><sub>r</sub></span> (رنگی)</span>
+          <span class="preset-desc"><span class="math"><i>h</i><sub>r</sub></span> = [8, 16, 26, 40, 60]</span>
+        </div>
+        <div class="preset-pill th" onclick="applyPreset('th')">
+          <span class="preset-name">اثر <span class="math"><i>th</i></span> (همگرایی)</span>
+          <span class="preset-desc"><span class="math"><i>th</i></span> = [0.1, 0.5, 1.5, 3.5, 7]</span>
+        </div>
+        <div class="preset-pill iter" onclick="applyPreset('iter')">
+          <span class="preset-name">اثر <span class="math"><i>maxIter</i></span> (تکرار)</span>
+          <span class="preset-desc">تکرار = [2, 5, 10, 18, 30]</span>
+        </div>
+        <div class="preset-pill kernel" onclick="applyPreset('kernel')">
+          <span class="preset-name">مقایسه کرنل‌ها</span>
+          <span class="preset-desc">گوسی در برابر یکنواخت</span>
+        </div>
+        <div class="preset-pill hybrid" onclick="applyPreset('hybrid')">
+          <span class="preset-name">ترکیبی (پیش‌فرض)</span>
+          <span class="preset-desc">طیف هموارسازی تدریجی</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       شبکه ۵ خروجی هم‌سطح (5 Side-by-Side Outputs Gallery)
+       ========================================================================== -->
+  <main class="outputs-container" id="outputsContainer">
+    <!-- ساختار کارت‌های خروجی ۰ تا ۴ با جاوااسکریپت به صورت پویا رندر می‌شود -->
+  </main>
+
+  <!-- ==========================================================================
+       بخش مقایسه تصویری، جدول کمّی و نمودارها
+       ========================================================================== -->
+  <section class="comparison-section" id="comparisonSection">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      بخش مقایسه تصویری، جدول کمّی و گزارش تحلیلی
+    </div>
+
+    <!-- مقایسه‌گر پرده‌ای و اختلاف رنگ -->
+    <div class="split-comparator-box">
+      <div class="split-viewport" id="splitViewport">
+        <div class="split-layer bottom" id="layerBottom"><canvas id="canvasBottom"></canvas></div>
+        <div class="split-layer top" id="layerTop"><canvas id="canvasTop"></canvas></div>
+        <div class="split-handle" id="splitHandle"></div>
+      </div>
+
+      <div class="comparator-controls">
+        <h4 style="font-size: 0.85rem; color: var(--text-main);">تنظیمات مقایسه‌گر تصویری:</h4>
+        
+        <label class="param-label-row">
+          <span>تصویر A (سمت چپ/زیر):</span>
+          <select class="select-sm" id="selImgA" onchange="updateComparator()"></select>
+        </label>
+
+        <label class="param-label-row">
+          <span>تصویر B (سمت راست/رو):</span>
+          <select class="select-sm" id="selImgB" onchange="updateComparator()"></select>
+        </label>
+
+        <label class="param-label-row" style="margin-top: 6px; cursor: pointer;">
+          <input type="checkbox" id="chkDiffMap" onchange="updateComparator()">
+          <span style="color: var(--param-th); font-weight: 700;">نمایش نقشه اختلاف رنگ (Diff Map)</span>
+        </label>
+
+        <div style="background: rgba(15, 23, 42, 0.8); padding: 8px; border-radius: 6px; margin-top: 6px; font-size: 0.75rem;">
+          <div><span style="color: var(--text-muted);">معیار PSNR بین A و B:</span> <strong id="compPsnr">-</strong></div>
+          <div><span style="color: var(--text-muted);">خطای مطلق MAE:</span> <strong id="compMae">-</strong></div>
+          <div><span style="color: var(--text-muted);">درصد پیکسل‌های تغییریافته:</span> <strong id="compDiffPercent">-</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- جدول مقایسه کمی -->
+    <div class="table-wrapper">
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th>خروجی</th>
+            <th class="hs"><span class="math"><i>h</i><sub>s</sub></span></th>
+            <th class="hr"><span class="math"><i>h</i><sub>r</sub></span></th>
+            <th class="th"><span class="math"><i>th</i></span></th>
+            <th class="iter"><span class="math"><i>maxIter</i></span></th>
+            <th class="kernel">کرنل</th>
+            <th>تعداد خوشه‌ها</th>
+            <th>PSNR (dB)</th>
+            <th>MAE</th>
+            <th>هموارسازی (%)</th>
+            <th>زمان (ms)</th>
+          </tr>
+        </thead>
+        <tbody id="compTableBody">
+          <!-- با جاوااسکریپت پر می‌شود -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- نمودارها و گزارش خودکار -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h4 style="font-size: 0.8rem; color: var(--text-muted);">مقایسه تعداد خوشه‌ها (تراکم نهایی)</h4>
+        <div id="chartClusters"></div>
+      </div>
+      <div class="chart-card">
+        <h4 style="font-size: 0.8rem; color: var(--text-muted);">مقایسه کیفیت بازسازی (PSNR)</h4>
+        <div id="chartPsnr"></div>
+      </div>
+    </div>
+
+    <!-- گزارش تحلیلی هوشمند به زبان فارسی -->
+    <div class="analysis-report" id="analysisReport">
+      <h4>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        تحلیل کارشناسی هوشمند آزمایشگاه:
+      </h4>
+      <div id="reportText">در حال محاسبه و آمادگی تحلیل...</div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       مدال زوم (Lightbox Inspection Modal)
+       ========================================================================== -->
+  <div class="modal-backdrop" id="zoomModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTitle" style="font-size: 0.95rem;">جزئیات خروجی</h3>
+        <button class="btn" onclick="closeModal()">بستن ✕</button>
+      </div>
+      <div class="modal-body">
+        <canvas id="modalCanvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    پردازش ۱۰۰٪ محلی داخل مرورگر (Client-Side) — هیچ تصویری به سرور ارسال یا ذخیره نمی‌شود.
+  </footer>
+
+  <!-- ==========================================================================
+       جاوااسکریپت اصلی و موتور محاسباتی 5D True-Color Mean Shift
+       ========================================================================== -->
+  <script>
+    /* ==========================================================================
+1. کد موثر کدهای Inline Web Worker جهت پردازش 5D Mean Shift
+       ========================================================================== */
+    const workerCode = `
+      self.onmessage = function(e) {
+        const { slot, width, height, data, hs, hr, th, maxIter, kernel } = e.data;
+        const totalPixels = width * height;
+
+        // آرایه‌های ورودی پیکسل‌ها (x, y, R, G, B)
+        const R = new Float32Array(totalPixels);
+        const G = new Float32Array(totalPixels);
+        const B = new Float32Array(totalPixels);
+
+        for (let i = 0; i < totalPixels; i++) {
+          R[i] = data[i * 4];
+          G[i] = data[i * 4 + 1];
+          B[i] = data[i * 4 + 2];
+        }
+
+        const hsSq = hs * hs;
+        const hrSq = hr * hr;
+        const isGaussian = (kernel === 'gaussian');
+
+        // مودهای همگرا شده
+        const modeX = new Float32Array(totalPixels);
+        const modeY = new Float32Array(totalPixels);
+        const modeR = new Float32Array(totalPixels);
+        const modeG = new Float32Array(totalPixels);
+        const modeB = new Float32Array(totalPixels);
+
+        const startTime = performance.now();
+
+        // الگویابی برای هر پیکسل
+        for (let i = 0; i < totalPixels; i++) {
+          if (i % Math.max(1, Math.floor(totalPixels / 20)) === 0) {
+            self.postMessage({ type: 'progress', slot, progress: Math.floor((i / totalPixels) * 70) });
+          }
+
+          let cx = i % width;
+          let cy = Math.floor(i / width);
+          let cr = R[i];
+          let cg = G[i];
+          let cb = B[i];
+
+          for (let iter = 0; iter < maxIter; iter++) {
+            let sumX = 0, sumY = 0, sumR = 0, sumG = 0, sumB = 0, totalWeight = 0;
+
+            const minX = Math.max(0, Math.floor(cx - hs));
+            const maxX = Math.min(width - 1, Math.ceil(cx + hs));
+            const minY = Math.max(0, Math.floor(cy - hs));
+            const maxY = Math.min(height - 1, Math.ceil(cy + hs));
+
+            for (let ny = minY; ny <= maxY; ny++) {
+              for (let nx = minX; nx <= maxX; nx++) {
+                const nIdx = ny * width + nx;
+                const dx = nx - cx;
+                const dy = ny - cy;
+                const dSpatialSq = dx * dx + dy * dy;
+
+                if (dSpatialSq > hsSq) continue;
+
+                const dr = R[nIdx] - cr;
+                const dg = G[nIdx] - cg;
+                const db = B[nIdx] - cb;
+                const dRangeSq = dr * dr + dg * dg + db * db;
+
+                if (dRangeSq > hrSq) continue;
+
+                let weight = 1.0;
+                if (isGaussian) {
+                  const normDist = (dSpatialSq / hsSq) + (dRangeSq / hrSq);
+                  weight = Math.exp(-0.5 * normDist);
+                }
+
+                sumX += nx * weight;
+                sumY += ny * weight;
+                sumR += R[nIdx] * weight;
+                sumG += G[nIdx] * weight;
+                sumB += B[nIdx] * weight;
+                totalWeight += weight;
+              }
+            }
+
+            if (totalWeight < 1e-6) break;
+
+            const nextX = sumX / totalWeight;
+            const nextY = sumY / totalWeight;
+            const nextR = sumR / totalWeight;
+            const nextG = sumG / totalWeight;
+            const nextB = sumB / totalWeight;
+
+            const shiftSq = (nextX - cx) ** 2 + (nextY - cy) ** 2 + 
+                            (nextR - cr) ** 2 + (nextG - cg) ** 2 + (nextB - cb) ** 2;
+
+            cx = nextX; cy = nextY; cr = nextR; cg = nextG; cb = nextB;
+
+            if (shiftSq < th * th) break;
+          }
+
+          modeX[i] = cx; modeY[i] = cy;
+          modeR[i] = cr; modeG[i] = cg; modeB[i] = cb;
+        }
+
+        self.postMessage({ type: 'progress', slot, progress: 85 });
+
+        // ادغام ناحیه‌ای (Disjoint Set Union - DSU)
+        const parent = new Int32Array(totalPixels);
+        for (let i = 0; i < totalPixels; i++) parent[i] = i;
+
+        function find(i) {
+          let root = i;
+          while (root !== parent[root]) root = parent[root];
+          let curr = i;
+          while (curr !== root) {
+            let nxt = parent[curr];
+            parent[curr] = root;
+            curr = nxt;
+          }
+          return root;
+        }
+
+        function union(i, j) {
+          const rootI = find(i);
+          const rootJ = find(j);
+          if (rootI !== rootJ) parent[rootI] = rootJ;
+        }
+
+        // بررسی همسایگی ۴گانه
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const idx = y * width + x;
+            // همسایه راست
+            if (x + 1 < width) {
+              const rIdx = idx + 1;
+              const dSpatialSq = (modeX[idx] - modeX[rIdx]) ** 2 + (modeY[idx] - modeY[rIdx]) ** 2;
+              const dRangeSq = (modeR[idx] - modeR[rIdx]) ** 2 + (modeG[idx] - modeG[rIdx]) ** 2 + (modeB[idx] - modeB[rIdx]) ** 2;
+              if (dSpatialSq <= hsSq && dRangeSq <= hrSq) union(idx, rIdx);
+            }
+            // همسایه پایین
+            if (y + 1 < height) {
+              const bIdx = idx + width;
+              const dSpatialSq = (modeX[idx] - modeX[bIdx]) ** 2 + (modeY[idx] - modeY[bIdx]) ** 2;
+              const dRangeSq = (modeR[idx] - modeR[bIdx]) ** 2 + (modeG[idx] - modeG[bIdx]) ** 2 + (modeB[idx] - modeB[bIdx]) ** 2;
+              if (dSpatialSq <= hsSq && dRangeSq <= hrSq) union(idx, bIdx);
+            }
+          }
+        }
+
+        // میانگین‌گیری واقعی رنگی (True-Color Averaging)
+        const clusterSumR = {};
+        const clusterSumG = {};
+        const clusterSumB = {};
+        const clusterCount = {};
+
+        for (let i = 0; i < totalPixels; i++) {
+          const root = find(i);
+          if (!clusterCount[root]) {
+            clusterSumR[root] = 0; clusterSumG[root] = 0; clusterSumB[root] = 0; clusterCount[root] = 0;
+          }
+          clusterSumR[root] += R[i];
+          clusterSumG[root] += G[i];
+          clusterSumB[root] += B[i];
+          clusterCount[root]++;
+        }
+
+        const uniqueClusters = Object.keys(clusterCount).length;
+
+        // ساخت داده‌های پیکسل خروجی
+        const outputData = new Uint8ClampedArray(totalPixels * 4);
+        let mseSum = 0;
+        let maeSum = 0;
+        let changedPixels = 0;
+
+        for (let i = 0; i < totalPixels; i++) {
+          const root = find(i);
+          const avgR = Math.round(clusterSumR[root] / clusterCount[root]);
+          const avgG = Math.round(clusterSumG[root] / clusterCount[root]);
+          const avgB = Math.round(clusterSumB[root] / clusterCount[root]);
+
+          outputData[i * 4] = avgR;
+          outputData[i * 4 + 1] = avgG;
+          outputData[i * 4 + 2] = avgB;
+          outputData[i * 4 + 3] = 255;
+
+          const diffR = Math.abs(R[i] - avgR);
+          const diffG = Math.abs(G[i] - avgG);
+          const diffB = Math.abs(B[i] - avgB);
+
+          maeSum += (diffR + diffG + diffB) / 3;
+          mseSum += (diffR * diffR + diffG * diffG + diffB * diffB) / 3;
+
+          if (diffR > 5 || diffG > 5 || diffB > 5) changedPixels++;
+        }
+
+        const mse = mseSum / totalPixels;
+        const psnr = mse === 0 ? 99.99 : 10 * Math.log10((255 * 255) / mse);
+        const mae = maeSum / totalPixels;
+        const smoothingRatio = (changedPixels / totalPixels) * 100;
+        const execTime = performance.now() - startTime;
+
+        self.postMessage({
+          type: 'complete',
+          slot,
+          outputData,
+          clusters: uniqueClusters,
+          psnr: psnr.toFixed(2),
+          mae: mae.toFixed(2),
+          smoothingRatio: smoothingRatio.toFixed(1),
+          execTime: Math.round(execTime)
+        });
+      };
+    `;
+
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    const workerBlobUrl = URL.createObjectURL(blob);
+
+    /* ==========================================================================
+2. مدیریت وضعیت و پیکربندی برنامه
+       ========================================================================== */
+    const NUM_SLOTS = 5;
+    let activeWorkers = [null, null, null, null, null];
+    let runTokens = [0, 0, 0, 0, 0];
+    let slotsState = [];
+    
+    let originalImageData = null;
+    let processingWidth = 140;
+    let processingHeight = 140;
+
+    // متغیرهای ذخیره خروجی‌ها جهت مقایسه
+    let renderedOutputs = [null, null, null, null, null];
+
+    // مقادیر اولیه ۵ خروجی
+    const defaultParams = [
+      { hs: 6,  hr: 15, th: 0.5, maxIter: 20, kernel: 'gaussian' },
+      { hs: 12, hr: 25, th: 0.5, maxIter: 20, kernel: 'gaussian' },
+      { hs: 18, hr: 35, th: 0.5, maxIter: 20, kernel: 'gaussian' },
+      { hs: 24, hr: 45, th: 0.5, maxIter: 20, kernel: 'gaussian' },
+      { hs: 30, hr: 55, th: 0.5, maxIter: 20, kernel: 'uniform' }
+    ];
+
+    /* ==========================================================================
+3. مقداردهی اولیه UI و کارت‌های ۵گانه
+       ========================================================================== */
+    window.addEventListener('DOMContentLoaded', () => {
+      initSlotsUI();
+      loadDemoImage();
+      setupSplitComparatorEvents();
+
+      // دکمه‌های ابزار بالا
+      document.getElementById('btnRunAll').addEventListener('click', runAllSlots);
+      document.getElementById('btnSyncSlot1').addEventListener('click', syncSlot1ToAll);
+      document.getElementById('btnTogglePresentation').addEventListener('click', togglePresentationMode);
+      document.getElementById('btnExportSheet').addEventListener('click', export6PanelSheet);
+      document.getElementById('btnLoadDemo').addEventListener('click', loadDemoImage);
+      
+      document.getElementById('selResolution').addEventListener('change', (e) => {
+        processingWidth = parseInt(e.target.value);
+        resizeAndDrawRef();
+      });
+
+      document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+    });
+
+    // تولید ۵ کارت خروجی هم‌سطح
+    function initSlotsUI() {
+      const container = document.getElementById('outputsContainer');
+      container.innerHTML = '';
+      slotsState = [];
+
+      for (let i = 0; i < NUM_SLOTS; i++) {
+        const p = defaultParams[i];
+        slotsState.push({ ...p, metrics: null });
+
+        const card = document.createElement('div');
+        card.className = 'output-card';
+        card.dataset.slot = i;
+        card.innerHTML = `
+          <div class="card-header">
+            <span class="card-badge">خروجی ${i + 1}</span>
+            <span class="status-pill" id="status_${i}">آماده</span>
+          </div>
+
+          <div class="canvas-wrapper" onclick="openZoomModal(${i})">
+            <canvas id="canvas_${i}"></canvas>
+            <div class="progress-overlay" id="overlay_${i}">
+              <div class="spinner"></div>
+              <div class="progress-text" id="progText_${i}">0%</div>
+            </div>
+          </div>
+
+          <div class="params-group">
+            <div class="param-item hs">
+              <div class="param-label-row">
+                <span class="param-name">مکانی <span class="math"><i>h</i><sub>s</sub></span>:</span>
+                <span class="param-val" id="val_hs_${i}">${p.hs}</span>
+              </div>
+              <input type="range" id="inp_hs_${i}" min="2" max="40" value="${p.hs}" oninput="updateParam(${i}, 'hs', this.value)">
+            </div>
+
+            <div class="param-item hr">
+              <div class="param-label-row">
+                <span class="param-name">رنگی <span class="math"><i>h</i><sub>r</sub></span>:</span>
+                <span class="param-val" id="val_hr_${i}">${p.hr}</span>
+              </div>
+              <input type="range" id="inp_hr_${i}" min="4" max="80" value="${p.hr}" oninput="updateParam(${i}, 'hr', this.value)">
+            </div>
+
+            <div class="param-item th">
+              <div class="param-label-row">
+                <span class="param-name">آستانه <span class="math"><i>th</i></span>:</span>
+                <span class="param-val" id="val_th_${i}">${p.th}</span>
+              </div>
+              <input type="range" id="inp_th_${i}" min="0.1" max="10" step="0.1" value="${p.th}" oninput="updateParam(${i}, 'th', this.value)">
+            </div>
+
+            <div class="param-item iter">
+              <div class="param-label-row">
+                <span class="param-name">تکرار <span class="math"><i>maxIter</i></span>:</span>
+                <span class="param-val" id="val_maxIter_${i}">${p.maxIter}</span>
+              </div>
+              <input type="range" id="inp_maxIter_${i}" min="1" max="50" value="${p.maxIter}" oninput="updateParam(${i}, 'maxIter', this.value)">
+            </div>
+
+            <div class="param-item kernel">
+              <div class="param-label-row">
+                <span class="param-name">نوع کرنل:</span>
+              </div>
+              <select class="select-kernel" id="sel_kernel_${i}" onchange="updateParam(${i}, 'kernel', this.value)">
+                <option value="gaussian" ${p.kernel === 'gaussian' ? 'selected' : ''}>گوسی (Gaussian)</option>
+                <option value="uniform" ${p.kernel === 'uniform' ? 'selected' : ''}>یکنواخت (Uniform)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="metrics-grid">
+            <div class="metric-item">
+              <span class="metric-label">خوشه‌ها</span>
+              <span class="metric-value" id="met_clusters_${i}">-</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">PSNR</span>
+              <span class="metric-value" id="met_psnr_${i}">-</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">MAE</span>
+              <span class="metric-value" id="met_mae_${i}">-</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">زمان (ms)</span>
+              <span class="metric-value" id="met_time_${i}">-</span>
+            </div>
+          </div>
+
+          <div class="card-actions">
+            <button class="btn btn-primary" onclick="runSingleSlot(${i})">اجرا</button>
+            <button class="btn" onclick="downloadSlotPNG(${i})">دانلود</button>
+          </div>
+        `;
+        container.appendChild(card);
+      }
+    }
+
+    function updateParam(slot, key, val) {
+      if (key === 'kernel') {
+        slotsState[slot][key] = val;
+      } else {
+        const num = parseFloat(val);
+        slotsState[slot][key] = num;
+        document.getElementById(`val_${key}_${slot}`).textContent = num;
+      }
+    }
+
+    /* ==========================================================================
+4. بارگذاری تصویر نمونه سه‌بعدی متحرک (Procedural Test Image)
+       ========================================================================== */
+    function loadDemoImage() {
+      const cvs = document.createElement('canvas');
+      cvs.width = 300; cvs.height = 300;
+      const ctx = cvs.getContext('2d');
+
+      // پس‌زمینه گرادیان
+      const grad = ctx.createLinearGradient(0, 0, 300, 300);
+      grad.addColorStop(0, '#0f172a');
+      grad.addColorStop(0.5, '#1e1b4b');
+      grad.addColorStop(1, '#311042');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 300, 300);
+
+      // رسم ۳ کره رنگی با نورپردازی متحرک
+      drawSphere(ctx, 100, 110, 60, '#38bdf8', '#0284c7');
+      drawSphere(ctx, 200, 140, 50, '#10b981', '#047857');
+      drawSphere(ctx, 150, 220, 55, '#f43f5e', '#be123c');
+
+      // بافت شبکه توری
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 2;
+      for (let x = 0; x < 300; x += 30) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 300); ctx.stroke();
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        storeAndDrawRef(img);
+        runAllSlots();
+      };
+      img.src = cvs.toDataURL();
+    }
+
+    function drawSphere(ctx, x, y, r, c1, c2) {
+      const g = ctx.createRadialGradient(x - r/3, y - r/3, r/10, x, y, r);
+      g.addColorStop(0, '#ffffff');
+      g.addColorStop(0.3, c1);
+      g.addColorStop(1, c2);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function handleFileUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const img = new Image();
+        img.onload = () => {
+          storeAndDrawRef(img);
+          runAllSlots();
+        };
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    let loadedSourceImage = null;
+    function storeAndDrawRef(img) {
+      loadedSourceImage = img;
+      resizeAndDrawRef();
+    }
+
+    function resizeAndDrawRef() {
+      if (!loadedSourceImage) return;
+      
+      const aspect = loadedSourceImage.height / loadedSourceImage.width;
+      processingHeight = Math.round(processingWidth * aspect);
+
+      const refCvs = document.getElementById('refCanvas');
+      refCvs.width = processingWidth;
+      refCvs.height = processingHeight;
+      const ctx = refCvs.getContext('2d');
+      ctx.drawImage(loadedSourceImage, 0, 0, processingWidth, processingHeight);
+
+      originalImageData = ctx.getImageData(0, 0, processingWidth, processingHeight);
+      updateComparatorSelects();
+    }
+
+    /* ==========================================================================
+5. موتور اجرای الگوریتم (Web Worker Execution)
+       ========================================================================== */
+    function runSingleSlot(slot) {
+      if (!originalImageData) return;
+
+      // خاتمه دادن به ورکر قبلی در صورت وجود (جلوگیری از Race Condition)
+      if (activeWorkers[slot]) {
+        activeWorkers[slot].terminate();
+        activeWorkers[slot] = null;
+      }
+
+      runTokens[slot]++;
+      const currentToken = runTokens[slot];
+
+      // به روز رسانی UI وضعیت
+      document.getElementById(`status_${slot}`).textContent = 'در حال محاسبه...';
+      const overlay = document.getElementById(`overlay_${slot}`);
+      const progText = document.getElementById(`progText_${slot}`);
+      overlay.classList.add('active');
+      progText.textContent = '0%';
+
+      const worker = new Worker(workerBlobUrl);
+      activeWorkers[slot] = worker;
+
+      const p = slotsState[slot];
+
+      worker.postMessage({
+        slot,
+        width: processingWidth,
+        height: processingHeight,
+        data: originalImageData.data,
+        hs: p.hs,
+        hr: p.hr,
+        th: p.th,
+        maxIter: p.maxIter,
+        kernel: p.kernel
+      });
+
+      worker.onmessage = (e) => {
+        if (runTokens[slot] !== currentToken) return;
+
+        if (e.data.type === 'progress') {
+          progText.textContent = `${e.data.progress}%`;
+        } else if (e.data.type === 'complete') {
+          overlay.classList.remove('active');
+          document.getElementById(`status_${slot}`).textContent = 'تکمیل شد';
+
+          const { outputData, clusters, psnr, mae, smoothingRatio, execTime } = e.data;
+
+          // به روز رسانی معیارهای کارت
+          document.getElementById(`met_clusters_${slot}`).textContent = clusters;
+          document.getElementById(`met_psnr_${slot}`).textContent = psnr;
+          document.getElementById(`met_mae_${slot}`).textContent = mae;
+          document.getElementById(`met_time_${slot}`).textContent = execTime;
+
+          slotsState[slot].metrics = { clusters, psnr, mae, smoothingRatio, execTime };
+
+          // رسم تصویر در بوم کارت
+          const cvs = document.getElementById(`canvas_${slot}`);
+          cvs.width = processingWidth;
+          cvs.height = processingHeight;
+          const ctx = cvs.getContext('2d');
+          const imgData = ctx.createImageData(processingWidth, processingHeight);
+          imgData.data.set(outputData);
+          ctx.putImageData(imgData, 0, 0);
+
+          renderedOutputs[slot] = imgData;
+
+          activeWorkers[slot].terminate();
+          activeWorkers[slot] = null;
+
+          // به روز رسانی بخش‌های مقایسه و جدول
+          refreshComparisonData();
+        }
+      };
+    }
+
+    function runAllSlots() {
+      for (let i = 0; i < NUM_SLOTS; i++) {
+        runSingleSlot(i);
+      }
+    }
+
+    function syncSlot1ToAll() {
+      const p1 = slotsState[0];
+      for (let i = 1; i < NUM_SLOTS; i++) {
+        slotsState[i].hs = p1.hs;
+        slotsState[i].hr = p1.hr;
+        slotsState[i].th = p1.th;
+        slotsState[i].maxIter = p1.maxIter;
+        slotsState[i].kernel = p1.kernel;
+
+        document.getElementById(`inp_hs_${i}`).value = p1.hs;
+        document.getElementById(`val_hs_${i}`).textContent = p1.hs;
+
+        document.getElementById(`inp_hr_${i}`).value = p1.hr;
+        document.getElementById(`val_hr_${i}`).textContent = p1.hr;
+
+        document.getElementById(`inp_th_${i}`).value = p1.th;
+        document.getElementById(`val_th_${i}`).textContent = p1.th;
+
+        document.getElementById(`inp_maxIter_${i}`).value = p1.maxIter;
+        document.getElementById(`val_maxIter_${i}`).textContent = p1.maxIter;
+
+        document.getElementById(`sel_kernel_${i}`).value = p1.kernel;
+      }
+      runAllSlots();
+    }
+
+    /* ==========================================================================
+6. پیش‌فرض‌های آزمایش‌های علمی
+       ========================================================================== */
+    function applyPreset(type) {
+      if (type === 'hs') {
+        const hsVals = [4, 8, 14, 22, 32];
+        for (let i = 0; i < 5; i++) {
+          slotsState[i] = { hs: hsVals[i], hr: 25, th: 0.5, maxIter: 20, kernel: 'gaussian' };
+        }
+      } else if (type === 'hr') {
+        const hrVals = [8, 16, 26, 40, 60];
+        for (let i = 0; i < 5; i++) {
+          slotsState[i] = { hs: 12, hr: hrVals[i], th: 0.5, maxIter: 20, kernel: 'gaussian' };
+        }
+      } else if (type === 'th') {
+        const thVals = [0.1, 0.5, 1.5, 3.5, 7.0];
+        for (let i = 0; i < 5; i++) {
+          slotsState[i] = { hs: 12, hr: 26, th: thVals[i], maxIter: 25, kernel: 'gaussian' };
+        }
+      } else if (type === 'iter') {
+        const iterVals = [2, 5, 10, 18, 30];
+        for (let i = 0; i < 5; i++) {
+          slotsState[i] = { hs: 12, hr: 28, th: 0.1, maxIter: iterVals[i], kernel: 'gaussian' };
+        }
+      } else if (type === 'kernel') {
+        slotsState[0] = { hs: 10, hr: 20, th: 0.5, maxIter: 20, kernel: 'gaussian' };
+        slotsState[1] = { hs: 10, hr: 20, th: 0.5, maxIter: 20, kernel: 'uniform' };
+        slotsState[2] = { hs: 20, hr: 40, th: 0.5, maxIter: 20, kernel: 'gaussian' };
+        slotsState[3] = { hs: 20, hr: 40, th: 0.5, maxIter: 20, kernel: 'uniform' };
+        slotsState[4] = { hs: 30, hr: 60, th: 0.5, maxIter: 20, kernel: 'gaussian' };
+      } else if (type === 'hybrid') {
+        for (let i = 0; i < 5; i++) {
+          slotsState[i] = { ...defaultParams[i] };
+        }
+      }
+
+      // به روز رسانی عناصر UI اسلایدرها
+      for (let i = 0; i < NUM_SLOTS; i++) {
+        const p = slotsState[i];
+        document.getElementById(`inp_hs_${i}`).value = p.hs;
+        document.getElementById(`val_hs_${i}`).textContent = p.hs;
+
+        document.getElementById(`inp_hr_${i}`).value = p.hr;
+        document.getElementById(`val_hr_${i}`).textContent = p.hr;
+
+        document.getElementById(`inp_th_${i}`).value = p.th;
+        document.getElementById(`val_th_${i}`).textContent = p.th;
+
+        document.getElementById(`inp_maxIter_${i}`).value = p.maxIter;
+        document.getElementById(`val_maxIter_${i}`).textContent = p.maxIter;
+
+        document.getElementById(`sel_kernel_${i}`).value = p.kernel;
+      }
+
+      runAllSlots();
+    }
+
+    /* ==========================================================================
+7. حالت ارائه تمام‌صفحه (Focus Mode)
+       ========================================================================== */
+    function togglePresentationMode() {
+      const panel = document.getElementById('controlsPanel');
+      panel.classList.toggle('collapsed');
+      const btn = document.getElementById('btnTogglePresentation');
+      if (panel.classList.contains('collapsed')) {
+        btn.style.background = '#38bdf8';
+        btn.style.color = '#070d1a';
+      } else {
+        btn.style.background = '';
+        btn.style.color = '';
+      }
+    }
+
+    /* ==========================================================================
+8. به روز رسانی جدول، نمودارها و گزارش تحلیلی
+       ========================================================================== */
+    function refreshComparisonData() {
+      updateTable();
+      updateCharts();
+      generateScientificReport();
+      updateComparator();
+    }
+
+    function updateTable() {
+      const tbody = document.getElementById('compTableBody');
+      tbody.innerHTML = '';
+
+      // پیدا کردن بهترین PSNR و کمترین خوشه
+      let maxPsnr = -1, minClusters = Infinity;
+      slotsState.forEach(s => {
+        if (s.metrics) {
+          if (parseFloat(s.metrics.psnr) > maxPsnr) maxPsnr = parseFloat(s.metrics.psnr);
+          if (s.metrics.clusters < minClusters) minClusters = s.metrics.clusters;
+        }
+      });
+
+      for (let i = 0; i < NUM_SLOTS; i++) {
+        const p = slotsState[i];
+        const m = p.metrics || { clusters: '-', psnr: '-', mae: '-', smoothingRatio: '-', execTime: '-' };
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong style="color: var(--out-${i+1})">خروجی ${i+1}</strong></td>
+          <td style="color: var(--param-hs); font-weight:700;">${p.hs}</td>
+          <td style="color: var(--param-hr); font-weight:700;">${p.hr}</td>
+          <td style="color: var(--param-th); font-weight:700;">${p.th}</td>
+          <td style="color: var(--param-iter); font-weight:700;">${p.maxIter}</td>
+          <td style="color: var(--param-kernel);">${p.kernel === 'gaussian' ? 'گوسی' : 'یکنواخت'}</td>
+          <td>${m.clusters} ${m.clusters === minClusters ? '<span class="best-badge">کمترین</span>' : ''}</td>
+          <td>${m.psnr} ${parseFloat(m.psnr) === maxPsnr ? '<span class="best-badge">بهترین</span>' : ''}</td>
+          <td>${m.mae}</td>
+          <td>${m.smoothingRatio}%</td>
+          <td>${m.execTime}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function updateCharts() {
+      const cClusters = document.getElementById('chartClusters');
+      const cPsnr = document.getElementById('chartPsnr');
+      cClusters.innerHTML = ''; cPsnr.innerHTML = '';
+
+      let maxC = 1, maxP = 1;
+      slotsState.forEach(s => {
+        if (s.metrics) {
+          if (s.metrics.clusters > maxC) maxC = s.metrics.clusters;
+          if (parseFloat(s.metrics.psnr) > maxP) maxP = parseFloat(s.metrics.psnr);
+        }
+      });
+
+      for (let i = 0; i < NUM_SLOTS; i++) {
+        const m = slotsState[i].metrics || { clusters: 0, psnr: 0 };
+        
+        // نمودار خوشه‌ها
+        const rowC = document.createElement('div');
+        rowC.className = 'bar-row';
+        rowC.innerHTML = `
+          <span class="bar-label">خروجی ${i+1}</span>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${(m.clusters / maxC) * 100}%; background: var(--out-${i+1});"></div>
+          </div>
+          <span style="width: 45px; text-align: left; font-family: monospace;">${m.clusters}</span>
+        `;
+        cClusters.appendChild(rowC);
+
+        // نمودار PSNR
+        const rowP = document.createElement('div');
+        rowP.className = 'bar-row';
+        rowP.innerHTML = `
+          <span class="bar-label">خروجی ${i+1}</span>
+          <div class="bar-track">
+            <div class="bar-fill" style="width: ${(parseFloat(m.psnr) / maxP) * 100}%; background: var(--param-hr);"></div>
+          </div>
+          <span style="width: 45px; text-align: left; font-family: monospace;">${m.psnr}</span>
+        `;
+        cPsnr.appendChild(rowP);
+      }
+    }
+
+    function generateScientificReport() {
+      const rep = document.getElementById('reportText');
+      
+      // بررسی متغیر آزمایش
+      const hsSet = new Set(slotsState.map(s => s.hs));
+      const hrSet = new Set(slotsState.map(s => s.hr));
+      const thSet = new Set(slotsState.map(s => s.th));
+      const iterSet = new Set(slotsState.map(s => s.maxIter));
+
+      let mainVar = 'ترکیبی';
+      if (hsSet.size > 1 && hrSet.size === 1) mainVar = 'hs';
+      else if (hrSet.size > 1 && hsSet.size === 1) mainVar = 'hr';
+      else if (thSet.size > 1 && hsSet.size === 1) mainVar = 'th';
+      else if (iterSet.size > 1 && hsSet.size === 1) mainVar = 'maxIter';
+
+      let text = '';
+      if (mainVar === 'hs') {
+        text = `در این آزمایش، <strong>پهنای باند مکانی (<span class="math"><i>h</i><sub>s</sub></span>)</strong> متغیر اصلی بوده است. افزایش مقادیر <span class="math"><i>h</i><sub>s</sub></span> موجب گسترش شعاع همسایگی مکانی پیکسل‌ها گردیده و با ادغام نویزهای کوچک، تعداد خوشه‌ها کاهش یافته است. خروجی‌های با <span class="math"><i>h</i><sub>s</sub></span> بالاتر دارای درجه هموارسازی بیشتری هستند.`;
+      } else if (mainVar === 'hr') {
+        text = `در این آزمایش، <strong>پهنای باند رنگی (<span class="math"><i>h</i><sub>r</sub></span>)</strong> تغییر یافته است. مقادیر کوچک‌تر <span class="math"><i>h</i><sub>r</sub></span> جزییات ظریف رنگی و لبه‌ها را حفظ می‌کنند (PSNR بالاتر)، در حالی که مقادیر بزرگ‌تر موجب ترکیب طیف‌های رنگی نزدیک و ساده‌سازی شدید تصویر می‌گردند.`;
+      } else if (mainVar === 'th') {
+        text = `تغییرات <strong>آستانه همگرایی (<span class="math"><i>th</i></span>)</strong> بررسی شد. مقادیر کوچک‌تر <span class="math"><i>th</i></span> تکرارهای بیشتری تا همگرایی کامل انجام داده و دقت لبه‌ها را افزایش می‌دهند، اما زمان محاسباتی را اندکی بالا می‌برند.`;
+      } else if (mainVar === 'iter') {
+        text = `تاثیر <strong>حداکثر تکرار (<span class="math"><i>maxIter</i></span>)</strong> ارزیابی شد. تکرارهای اولیه (۱ تا ۵) بیشترین جابجایی مود را ایجاد می‌کنند و پس از ۱۰ تکرار، تغییرات موقعیت مکانی-رنگی به حالت پایدار می‌رسد.`;
+      } else {
+        text = `در حالت <strong>ترکیبی پیش‌فرض</strong>، طیف متوازنی از هموارسازی ملایم تا تجرید شدید تصویر در ۵ خروجی به نمایش درآمده است. خروجی‌های نخست جزییات ساختاری را حفظ کرده و خروجی‌های پایانی ناحیه‌بندی متمایزی ارائه داده‌اند.`;
+      }
+
+      rep.innerHTML = text;
+    }
+
+    /* ==========================================================================
+9. مقایسه‌گر تصویری پرده‌ای (Split Curtain) و Difference Map
+       ========================================================================== */
+    function updateComparatorSelects() {
+      const selA = document.getElementById('selImgA');
+      const selB = document.getElementById('selImgB');
+      selA.innerHTML = '<option value="ref">تصویر مرجع اصلی</option>';
+      selB.innerHTML = '<option value="ref">تصویر مرجع اصلی</option>';
+
+      for (let i = 0; i < NUM_SLOTS; i++) {
+        selA.innerHTML += `<option value="${i}">خروجی ${i+1}</option>`;
+        selB.innerHTML += `<option value="${i}" ${i===1?'selected':''}>خروجی ${i+1}</option>`;
+      }
+    }
+
+    function setupSplitComparatorEvents() {
+      const viewport = document.getElementById('splitViewport');
+      const handle = document.getElementById('splitHandle');
+      const layerTop = document.getElementById('layerTop');
+      let isDragging = false;
+
+      function move(x) {
+        const rect = viewport.getBoundingClientRect();
+        let posX = x - rect.left;
+        posX = Math.max(0, Math.min(posX, rect.width));
+        const pct = (posX / rect.width) * 100;
+        layerTop.style.width = `${pct}%`;
+        handle.style.left = `${pct}%`;
+      }
+
+      viewport.addEventListener('mousedown', (e) => { isDragging = true; move(e.clientX); });
+      window.addEventListener('mousemove', (e) => { if (isDragging) move(e.clientX); });
+      window.addEventListener('mouseup', () => { isDragging = false; });
+
+      viewport.addEventListener('touchstart', (e) => { isDragging = true; move(e.touches[0].clientX); }, {passive: true});
+      window.addEventListener('touchmove', (e) => { if (isDragging) move(e.touches[0].clientX); }, {passive: true});
+      window.addEventListener('touchend', () => { isDragging = false; });
+    }
+
+    function getImageDataFromKey(key) {
+      if (key === 'ref') return originalImageData;
+      const idx = parseInt(key);
+      return renderedOutputs[idx] || originalImageData;
+    }
+
+    function updateComparator() {
+      const keyA = document.getElementById('selImgA').value;
+      const keyB = document.getElementById('selImgB').value;
+      const chkDiff = document.getElementById('chkDiffMap').checked;
+
+      const dataA = getImageDataFromKey(keyA);
+      const dataB = getImageDataFromKey(keyB);
+
+      if (!dataA || !dataB) return;
+
+      const cBottom = document.getElementById('canvasBottom');
+      const cTop = document.getElementById('canvasTop');
+      cBottom.width = processingWidth; cBottom.height = processingHeight;
+      cTop.width = processingWidth; cTop.height = processingHeight;
+
+      const ctxB = cBottom.getContext('2d');
+      const ctxT = cTop.getContext('2d');
+
+      ctxB.putImageData(dataA, 0, 0);
+
+      if (chkDiff) {
+        // نقشه تفاوت RGB با ضریب بزرگنمایی 4x
+        const diffImg = ctxT.createImageData(processingWidth, processingHeight);
+        let mseSum = 0, maeSum = 0, diffCount = 0;
+        const total = processingWidth * processingHeight;
+
+        for (let i = 0; i < total; i++) {
+          const dr = Math.abs(dataA.data[i*4] - dataB.data[i*4]);
+          const dg = Math.abs(dataA.data[i*4+1] - dataB.data[i*4+1]);
+          const db = Math.abs(dataA.data[i*4+2] - dataB.data[i*4+2]);
+
+          const diffAvg = (dr + dg + db) / 3;
+          maeSum += diffAvg;
+          mseSum += (dr*dr + dg*dg + db*db)/3;
+          if (diffAvg > 5) diffCount++;
+
+          // هیت‌مپ حرارتی تفاوت
+          diffImg.data[i*4] = Math.min(255, dr * 4);
+          diffImg.data[i*4+1] = Math.min(255, dg * 4);
+          diffImg.data[i*4+2] = Math.min(255, db * 4);
+          diffImg.data[i*4+3] = 255;
+        }
+
+        ctxT.putImageData(diffImg, 0, 0);
+        document.getElementById('splitHandle').style.display = 'none';
+        document.getElementById('layerTop').style.width = '100%';
+
+        const mse = mseSum / total;
+        const psnr = mse === 0 ? 99.99 : 10 * Math.log10((255*255)/mse);
+        document.getElementById('compPsnr').textContent = `${psnr.toFixed(2)} dB`;
+        document.getElementById('compMae').textContent = (maeSum / total).toFixed(2);
+        document.getElementById('compDiffPercent').textContent = `${((diffCount/total)*100).toFixed(1)}%`;
+
+      } else {
+        ctxT.putImageData(dataB, 0, 0);
+        document.getElementById('splitHandle').style.display = 'block';
+        document.getElementById('layerTop').style.width = '50%';
+        document.getElementById('splitHandle').style.left = '50%';
+
+        // محاسبه معیارهای بین A و B
+        let mseSum = 0, maeSum = 0, diffCount = 0;
+        const total = processingWidth * processingHeight;
+        for (let i = 0; i < total; i++) {
+          const dr = Math.abs(dataA.data[i*4] - dataB.data[i*4]);
+          const dg = Math.abs(dataA.data[i*4+1] - dataB.data[i*4+1]);
+          const db = Math.abs(dataA.data[i*4+2] - dataB.data[i*4+2]);
+          const diffAvg = (dr + dg + db) / 3;
+          maeSum += diffAvg;
+          mseSum += (dr*dr + dg*dg + db*db)/3;
+          if (diffAvg > 5) diffCount++;
+        }
+        const mse = mseSum / total;
+        const psnr = mse === 0 ? 99.99 : 10 * Math.log10((255*255)/mse);
+        document.getElementById('compPsnr').textContent = `${psnr.toFixed(2)} dB`;
+        document.getElementById('compMae').textContent = (maeSum / total).toFixed(2);
+        document.getElementById('compDiffPercent').textContent = `${((diffCount/total)*100).toFixed(1)}%`;
+      }
+    }
+
+    /* ==========================================================================
+10. مدال زوم (Zoom Lightbox) & دانلود PNG تک کارت
+       ========================================================================== */
+    function openZoomModal(slot) {
+      const modal = document.getElementById('zoomModal');
+      const cvs = document.getElementById('modalCanvas');
+      document.getElementById('modalTitle').textContent = `بازبینی بزرگ‌نمایی خروجی ${slot + 1}`;
+
+      const srcCvs = document.getElementById(`canvas_${slot}`);
+      cvs.width = srcCvs.width;
+      cvs.height = srcCvs.height;
+      const ctx = cvs.getContext('2d');
+      ctx.drawImage(srcCvs, 0, 0);
+
+      modal.classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('zoomModal').classList.remove('active');
+    }
+
+    function downloadSlotPNG(slot) {
+      const cvs = document.getElementById(`canvas_${slot}`);
+      const link = document.createElement('a');
+      link.download = `MeanShift_Output_${slot + 1}.png`;
+      link.href = cvs.toDataURL();
+      link.click();
+    }
+
+    /* ==========================================================================
+11. خروجی‌گرفتن از شیت ۶گانه تحلیلی (High-DPI 6-Panel PNG Exporter)
+       ========================================================================== */
+    function export6PanelSheet() {
+      const sheetCvs = document.createElement('canvas');
+      const w = processingWidth;
+      const h = processingHeight;
+
+      // ابعاد کلی شیت ۳ در ۲ با حاشیه‌ها و متون
+      const padding = 20;
+      const headerH = 60;
+      const cardHeaderH = 24;
+      const sheetW = (w * 3) + (padding * 4);
+      const sheetH = (h * 2) + headerH + (cardHeaderH * 2) + (padding * 4);
+
+      sheetCvs.width = sheetW;
+      sheetCvs.height = sheetH;
+      const ctx = sheetCvs.getContext('2d');
+
+      // پس‌زمینه پوستر
+      ctx.fillStyle = '#070d1a';
+      ctx.fillRect(0, 0, sheetW, sheetH);
+
+      // عنوان پوستر
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 18px Vazirmatn, sans-serif';
+      ctx.direction = 'rtl';
+      ctx.fillText('شیت مقایسه‌ای بخش‌بندی تصویر به روش Mean Shift', sheetW - padding - 10, 35);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '12px Vazirmatn, sans-serif';
+      ctx.fillText('آزمایشگاه هوش مصنوعی و پردازش تصویر', sheetW - padding - 10, 52);
+
+      // رسم ۶ فریم (مرجع + ۵ خروجی)
+      const positions = [
+        { col: 0, row: 0, title: 'تصویر اصلی مرجع', data: originalImageData },
+        { col: 1, row: 0, title: 'خروجی ۱', data: renderedOutputs[0] },
+        { col: 2, row: 0, title: 'خروجی ۲', data: renderedOutputs[1] },
+        { col: 0, row: 1, title: 'خروجی ۳', data: renderedOutputs[2] },
+        { col: 1, row: 1, title: 'خروجی ۴', data: renderedOutputs[3] },
+        { col: 2, row: 1, title: 'خروجی ۵', data: renderedOutputs[4] }
+      ];
+
+      const tempCvs = document.createElement('canvas');
+      tempCvs.width = w; tempCvs.height = h;
+      const tempCtx = tempCvs.getContext('2d');
+
+      positions.forEach((pos, idx) => {
+        const x = padding + pos.col * (w + padding);
+        const y = headerH + padding + pos.row * (h + cardHeaderH + padding);
+
+        // پس‌زمینه کارت
+        ctx.fillStyle = '#131f36';
+        ctx.fillRect(x - 2, y - cardHeaderH - 2, w + 4, h + cardHeaderH + 4);
+
+        // عنوان کارت
+        ctx.fillStyle = idx === 0 ? '#ffffff' : '#38bdf8';
+        ctx.font = 'bold 11px Vazirmatn, sans-serif';
+        ctx.fillText(pos.title, x + 5, y - 8);
+
+        // رسم تصویر
+        if (pos.data) {
+          tempCtx.putImageData(pos.data, 0, 0);
+          ctx.drawImage(tempCvs, x, y, w, h);
+        }
+      });
+
+      // دانلود تصویر نهایی
+      const link = document.createElement('a');
+      link.download = 'MeanShift_6Panel_Comparison_Sheet.png';
+      link.href = sheetCvs.toDataURL();
+      link.click();
+    }
+  </script>
+</body>
+</html>
